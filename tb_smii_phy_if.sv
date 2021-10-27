@@ -1,4 +1,5 @@
 `timescale 1ns/1ns
+// testbench for smii_phy_if.sv
 
 module tb_smii_phy_if();
 

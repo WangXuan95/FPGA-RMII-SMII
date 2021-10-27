@@ -4,7 +4,7 @@
 module rmii_phy_if (
     // reset, active low
     input  wire       rstn,
-    // speed mode: 0:10M, 1:100M
+    // speed mode: 0:10M, 1:100M, must be correctly specified
     input  wire       mode_speed,
     // MII interface connect to MAC
     output reg        mac_mii_crs,
