@@ -1,9 +1,14 @@
-`timescale 1 ns/1 ns
-// see specification document doc/RMII.pdf for the detail of RMII interface
+
+//--------------------------------------------------------------------------------------------------------
+// Module  : rmii_phy_if
+// Type    : synthesizable, IP's top
+// Standard: SystemVerilog 2005 (IEEE1800-2005)
+// Function: MII (MAC side) to RMII (PHY side) converter, for 10M or 100M ethernet
+//--------------------------------------------------------------------------------------------------------
 
 module rmii_phy_if (
     // reset, active low
-    input  wire       rstn,
+    input  wire       rstn_async,
     // speed mode: 0:10M, 1:100M, must be correctly specified
     input  wire       mode_speed,
     // MII interface connect to MAC
@@ -27,9 +32,10 @@ module rmii_phy_if (
     output reg  [1:0] phy_rmii_txd
 );
 
+initial {mac_mii_crs, mac_mii_rxc, mac_mii_rxdv, mac_mii_rxer, mac_mii_rxd, mac_mii_txc} = '0;
+initial {phy_rmii_txen, phy_rmii_txd} = '0;
+
 reg       mode_speed_r = 1'b0;
-reg [7:0] cnt_rst = 4'h0;
-reg       rstn_int = 1'b0;
 reg       action = 1'b0;
 reg [3:0] cnt_action = 4'h0;
 reg       rmii_crsdv_r = 1'b0;
@@ -52,38 +58,28 @@ reg [3:0] tx_rst_r = 4'hf;
 reg [3:0] rx_rst_r = 4'hf;
 
 // ----------------------------------------------------------------------------------------------------------------------
-//  mode_speed latch
+//  reset sync
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_rmii_ref_clk or negedge rstn)
-    if(~rstn)
+reg       rstn = '0;
+reg [7:0] rstn_shift = '0;
+always @ (posedge phy_rmii_ref_clk or negedge rstn_async)
+    if(~rstn_async) begin
+        {rstn, rstn_shift} <= '0;
         mode_speed_r <= 1'b0;
-    else
-        mode_speed_r <= mode_speed;
-
-// ----------------------------------------------------------------------------------------------------------------------
-//  reset generate
-// ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_rmii_ref_clk or negedge rstn)
-    if(~rstn) begin
-        cnt_rst <= 4'h0;
-        rstn_int <= 1'b0;
     end else begin
         if(mode_speed_r^mode_speed) begin
-            cnt_rst <= 4'h0;
-            rstn_int <= 1'b0;
-        end else if(cnt_rst<4'hf) begin
-            cnt_rst <= cnt_rst + 4'h1;
-            rstn_int <= 1'b0;
+            {rstn, rstn_shift} <= '0;
         end else begin
-            rstn_int <= 1'b1;
+            {rstn, rstn_shift} <= {rstn_shift, 1'b1};
         end
+        mode_speed_r <= mode_speed;
     end
 
 // ----------------------------------------------------------------------------------------------------------------------
 //  action generate
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_rmii_ref_clk or negedge rstn)
+    if(~rstn) begin
         action <= 1'b0;
         cnt_action <= 4'h0;
     end else begin
@@ -94,8 +90,8 @@ always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
 // ----------------------------------------------------------------------------------------------------------------------
 //  RMII RX raw signal latch 1
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_rmii_ref_clk or negedge rstn)
+    if(~rstn) begin
         rmii_crsdv_r <= 1'b0;
         rmii_rxer_r <= 1'b0;
         rmii_rxd_r <= 2'h0;
@@ -108,8 +104,8 @@ always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
 // ----------------------------------------------------------------------------------------------------------------------
 //  RMII RX raw signal latch 2
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_rmii_ref_clk or negedge rstn)
+    if(~rstn) begin
         rmii_rxer_rr <= 1'b0;
         rmii_rxd_rr <= 2'h0;
     end else begin
@@ -122,8 +118,8 @@ always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
 // ----------------------------------------------------------------------------------------------------------------------
 //  RMII RX signal parsing
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_rmii_ref_clk or negedge rstn)
+    if(~rstn) begin
         rx_busy <= 1'b0;
         rx_crs <= 1'b0;
         rx_ena <= 1'b0;
@@ -173,8 +169,8 @@ always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
 // ----------------------------------------------------------------------------------------------------------------------
 //  MII CRS signal generate
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_rmii_ref_clk or negedge rstn)
+    if(~rstn) begin
         mac_mii_crs <= 1'b0;
     end else begin
         if(action) begin
@@ -185,8 +181,8 @@ always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
 // ----------------------------------------------------------------------------------------------------------------------
 //  RMII RX parsed data latch
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_rmii_ref_clk or negedge rstn)
+    if(~rstn) begin
         rx_ena_r <= 1'b0;
         rx_err_r <= 1'b0;
         rx_data_r <= 4'h0;
@@ -202,8 +198,8 @@ always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
 //  MII RX reset generate to MAC
 // ----------------------------------------------------------------------------------------------------------------------
 assign mac_mii_rxrst = rx_rst_r[0];
-always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_rmii_ref_clk or negedge rstn)
+    if(~rstn) begin
         rx_rst_r <= 4'hf;
     end else begin
         if(action) begin
@@ -214,8 +210,8 @@ always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
 // ----------------------------------------------------------------------------------------------------------------------
 //  MII RX clock generate
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_rmii_ref_clk or negedge rstn)
+    if(~rstn) begin
         mac_mii_rxc <= 1'b0;
     end else begin
         if(action) begin
@@ -226,8 +222,8 @@ always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
 // ----------------------------------------------------------------------------------------------------------------------
 //  MII RX signal generate
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_rmii_ref_clk or negedge rstn)
+    if(~rstn) begin
         mac_mii_rxdv <= 1'b0;
         mac_mii_rxer <= 1'b0;
         mac_mii_rxd  <= 4'h0;
@@ -255,8 +251,8 @@ always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
 //  RMII TX reset generate to MAC
 // ----------------------------------------------------------------------------------------------------------------------
 assign mac_mii_txrst = tx_rst_r[0];
-always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_rmii_ref_clk or negedge rstn)
+    if(~rstn) begin
         tx_rst_r <= 4'hf;
     end else begin
         if(action) begin
@@ -267,8 +263,8 @@ always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
 // ----------------------------------------------------------------------------------------------------------------------
 //  RMII TX clock generate
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_rmii_ref_clk or negedge rstn)
+    if(~rstn) begin
         mac_mii_txc   <= 1'b0;
     end else begin
         if(action) begin
@@ -279,8 +275,8 @@ always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
 // ----------------------------------------------------------------------------------------------------------------------
 //  RMII TX signal generate
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_rmii_ref_clk or negedge rstn)
+    if(~rstn) begin
         rmii_txen <= 1'b0;
         {rmii_txd_r,rmii_txd} <= 4'h0;
     end else begin
@@ -300,8 +296,8 @@ always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
 // ----------------------------------------------------------------------------------------------------------------------
 //  RMII TX signal output buffer
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_rmii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_rmii_ref_clk or negedge rstn)
+    if(~rstn) begin
         phy_rmii_txen <= 1'b0;
         phy_rmii_txd <= 2'h0;
     end else begin

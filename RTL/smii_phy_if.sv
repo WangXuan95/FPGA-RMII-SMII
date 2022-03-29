@@ -1,5 +1,10 @@
-`timescale 1 ns/1 ns
-// see specification document doc/SMII.pdf for the detail of SMII interface
+
+//--------------------------------------------------------------------------------------------------------
+// Module  : smii_phy_if
+// Type    : synthesizable, IP's top
+// Standard: SystemVerilog 2005 (IEEE1800-2005)
+// Function: MII (MAC side) to SMII (PHY side) converter, for 10M or 100M ethernet
+//--------------------------------------------------------------------------------------------------------
 
 module smii_phy_if #(
     parameter  RX_SYNC_DELAY = 1  // Considering the PCB delay, when phy_smii_sync propagates from FPGA to PHY, and phy_smii_rxd propagates from PHY back to FPGA, phy_smii_rxd may be one cycle later than phy_smii_sync in FPGA's view. 
@@ -8,7 +13,7 @@ module smii_phy_if #(
                                   // 1: one cycle delay
 ) (
     // reset, active low
-    input  wire       rstn,
+    input  wire       rstn_async,
     // status output (optional for user)
     output reg        mode_speed,        // 0:10M,  1:100M
     output reg        mode_duplex,       // 0:Half, 1:Full
@@ -32,9 +37,11 @@ module smii_phy_if #(
     output reg        phy_smii_txd
 );
 
+initial {mode_speed, mode_duplex, status_link} = '0;
+initial {mac_mii_crs, mac_mii_rxc, mac_mii_rxdv, mac_mii_rxd} = '0;
+initial {phy_smii_sync, phy_smii_txd} = '0;
+
 reg [3:0] tx_rst_r = 4'hf;
-reg [3:0] cnt_rst = 4'h0;
-reg       rstn_int = 1'b0;
 reg       smii_rxsync_p = 1'b0;
 reg       smii_rxsync = 1'b0;
 reg       smii_rxd = 1'b0;
@@ -59,28 +66,23 @@ reg       smii_txsync = 1'b0;
 reg       smii_txd = 1'b0;
 
 // ----------------------------------------------------------------------------------------------------------------------
-//  reset generate
+//  reset sync
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_smii_ref_clk or negedge rstn)
-    if(~rstn) begin
-        cnt_rst <= 4'h0;
-        rstn_int <= 1'b0;
-    end else begin
-        if(cnt_rst<4'hf) begin
-            cnt_rst <= cnt_rst + 8'h1;
-            rstn_int <= 1'b0;
-        end else begin
-            rstn_int <= 1'b1;
-        end
-    end
+reg       rstn = '0;
+reg [7:0] rstn_shift = '0;
+always @ (posedge phy_smii_ref_clk or negedge rstn_async)
+    if(~rstn_async)
+        {rstn, rstn_shift} <= '0;
+    else
+        {rstn, rstn_shift} <= {rstn_shift, 1'b1};
 
 // ----------------------------------------------------------------------------------------------------------------------
 //  SMII TX reset and RX reset generate to MAC
 // ----------------------------------------------------------------------------------------------------------------------
-assign mac_mii_rxrst = ~rstn_int;
+assign mac_mii_rxrst = ~rstn;
 assign mac_mii_txrst = tx_rst_r[0];
-always @ (posedge phy_smii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_smii_ref_clk or negedge rstn)
+    if(~rstn) begin
         tx_rst_r <= 4'hf;
     end else begin
         if(phy_smii_sync) begin
@@ -91,8 +93,8 @@ always @ (posedge phy_smii_ref_clk or negedge rstn_int)
 // ----------------------------------------------------------------------------------------------------------------------
 //  SMII RX latch pre
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_smii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_smii_ref_clk or negedge rstn)
+    if(~rstn) begin
         smii_rxsync_p <= 1'b0;
     end else begin
         smii_rxsync_p <= phy_smii_sync;
@@ -101,8 +103,8 @@ always @ (posedge phy_smii_ref_clk or negedge rstn_int)
 // ----------------------------------------------------------------------------------------------------------------------
 //  SMII RX latch
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_smii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_smii_ref_clk or negedge rstn)
+    if(~rstn) begin
         smii_rxsync <= 1'b0;
         smii_rxd <= 1'b0;
     end else begin
@@ -113,8 +115,8 @@ always @ (posedge phy_smii_ref_clk or negedge rstn_int)
 // ----------------------------------------------------------------------------------------------------------------------
 //  SMII RX parse
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_smii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_smii_ref_clk or negedge rstn)
+    if(~rstn) begin
         rx_cnt <= 7'd0;
         rx_crs <= 1'b0;
         rx_dv <= 1'b0;
@@ -170,8 +172,8 @@ always @ (posedge phy_smii_ref_clk or negedge rstn_int)
 //  MII RX generate
 // ----------------------------------------------------------------------------------------------------------------------
 assign mac_mii_rxer = 1'b0;
-always @ (posedge phy_smii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_smii_ref_clk or negedge rstn)
+    if(~rstn) begin
         mac_mii_rxc <= 1'b0;
         mac_mii_rxdv <= 1'b0;
         mac_mii_rxd <= 4'h0;
@@ -204,8 +206,8 @@ assign mac_mii_txc = mac_mii_rxc;
 //  MII TX clock negedge detect
 // ----------------------------------------------------------------------------------------------------------------------
 assign mii_txc_negedge = mii_txc_r & ~mac_mii_txc;
-always @ (posedge phy_smii_ref_clk or negedge rstn_int)
-    if(~rstn_int)
+always @ (posedge phy_smii_ref_clk or negedge rstn)
+    if(~rstn)
         mii_txc_r <= 1'b0;
     else
         mii_txc_r <= mac_mii_txc;
@@ -213,8 +215,8 @@ always @ (posedge phy_smii_ref_clk or negedge rstn_int)
 // ----------------------------------------------------------------------------------------------------------------------
 //  MII TX parse
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_smii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_smii_ref_clk or negedge rstn)
+    if(~rstn) begin
         tx_en_r <= 1'b0;
         tx_even <= 1'b0;
         tx_err <= 1'b0;
@@ -239,8 +241,8 @@ always @ (posedge phy_smii_ref_clk or negedge rstn_int)
 // ----------------------------------------------------------------------------------------------------------------------
 //  SMII TX count
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_smii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_smii_ref_clk or negedge rstn)
+    if(~rstn) begin
         tx_cnt <= 4'd1;
         tx_seg_cnt <= 4'd1;
         tx_serial_r <= 10'd0;
@@ -261,8 +263,8 @@ always @ (posedge phy_smii_ref_clk or negedge rstn_int)
 // ----------------------------------------------------------------------------------------------------------------------
 //  SMII TX generate and SYNC generate
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_smii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_smii_ref_clk or negedge rstn)
+    if(~rstn) begin
         smii_txsync <= 1'b0;
         smii_txd <= 1'b0;
     end else begin
@@ -273,8 +275,8 @@ always @ (posedge phy_smii_ref_clk or negedge rstn_int)
 // ----------------------------------------------------------------------------------------------------------------------
 //  SMII TX output latch
 // ----------------------------------------------------------------------------------------------------------------------
-always @ (posedge phy_smii_ref_clk or negedge rstn_int)
-    if(~rstn_int) begin
+always @ (posedge phy_smii_ref_clk or negedge rstn)
+    if(~rstn) begin
         phy_smii_sync <= 1'b0;
         phy_smii_txd <= 1'b0;
     end else begin
