@@ -2,7 +2,7 @@
 //--------------------------------------------------------------------------------------------------------
 // Module  : tb_rmii_phy_if
 // Type    : simulation, top
-// Standard: SystemVerilog 2005 (IEEE1800-2005)
+// Standard: Verilog 2001 (IEEE1364-2001)
 // Function: testbench for rmii_phy_if
 //--------------------------------------------------------------------------------------------------------
 
@@ -28,13 +28,13 @@ wire       mac_mii_rxer;
 wire [3:0] mac_mii_rxd;
 wire       mac_mii_txrst;
 wire       mac_mii_txc;
-reg        mac_mii_txen = '0;
-reg        mac_mii_txer = '0;
-reg  [3:0] mac_mii_txd = '0;
+reg        mac_mii_txen = 0;
+reg        mac_mii_txer = 0;
+reg  [3:0] mac_mii_txd = 0;
 
 // RMII signals (PHY side)
-reg        phy_rmii_crsdv = '0;
-reg  [1:0] phy_rmii_rxd = '0;
+reg        phy_rmii_crsdv = 0;
+reg  [1:0] phy_rmii_rxd = 0;
 wire       phy_rmii_txen;
 wire [1:0] phy_rmii_txd;
 
@@ -61,7 +61,10 @@ rmii_phy_if rmii_phy_if_i(
     .phy_rmii_txd     ( phy_rmii_txd     )
 );
 
-task automatic rmii_phy_rx(input rxen, input [3:0] data);
+task rmii_phy_rx;
+    input rxen;
+    input [3:0] data;
+begin
     while(~rstn) @(posedge phy_rmii_ref_clk);
     while(mac_mii_rxrst) @(posedge phy_rmii_ref_clk);
     phy_rmii_crsdv <= rxen;
@@ -70,15 +73,21 @@ task automatic rmii_phy_rx(input rxen, input [3:0] data);
     phy_rmii_crsdv <= rxen;
     phy_rmii_rxd <= data[3:2];
     @(posedge phy_rmii_ref_clk);
+end
 endtask
 
-task automatic mii_mac_tx(input txen, input txer, input [3:0] txd);
+task mii_mac_tx;
+    input txen;
+    input txer;
+    input [3:0] txd;
+begin
     while(~rstn) @(posedge mac_mii_txc);
     while(mac_mii_txrst) @(posedge mac_mii_txc);
     mac_mii_txen <= txen;
     mac_mii_txer <= txer;
-    mac_mii_txd <= txen ? txd : '0;
+    mac_mii_txd <= txen ? txd : 0;
     @(posedge mac_mii_txc);
+end
 endtask
 
 initial begin

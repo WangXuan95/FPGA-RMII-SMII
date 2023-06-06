@@ -2,7 +2,7 @@
 //--------------------------------------------------------------------------------------------------------
 // Module  : tb_smii_phy_if
 // Type    : simulation, top
-// Standard: SystemVerilog 2005 (IEEE1800-2005)
+// Standard: Verilog 2001 (IEEE1364-2001)
 // Function: testbench for smii_phy_if
 //--------------------------------------------------------------------------------------------------------
 
@@ -33,13 +33,13 @@ wire       mac_mii_rxer;
 wire [3:0] mac_mii_rxd;
 wire       mac_mii_txrst;
 wire       mac_mii_txc;
-reg        mac_mii_txen = '0;
-reg        mac_mii_txer = '0;
-reg  [3:0] mac_mii_txd = '0;
+reg        mac_mii_txen = 0;
+reg        mac_mii_txer = 0;
+reg  [3:0] mac_mii_txd = 0;
 
 // SMII signals (PHY side)
 wire       phy_smii_sync;
-reg        phy_smii_rxd = '0;
+reg        phy_smii_rxd = 0;
 wire       phy_smii_txd;
 
 // MII to SMII converter
@@ -67,27 +67,36 @@ smii_phy_if #(
     .phy_smii_txd     ( phy_smii_txd     )
 );
 
-task automatic smii_phy_rx(input [9:0] data);
+task smii_phy_rx;
+    input [9:0] data;
+    integer i;
+begin
     while(~rstn) #1 ;
     while(~phy_smii_sync) #1 ;
-    for(int i=0; i<10; i++) begin
+    for(i=0; i<10; i++) begin
         phy_smii_rxd <= data[i];
         @(posedge phy_smii_ref_clk);
     end
+end
 endtask
 
-task automatic mii_mac_tx(input txen, input txer, input [3:0] txd);
+task mii_mac_tx;
+    input txen;
+    input txer;
+    input [3:0] txd;
+begin
     while(~rstn) #1 ;
     while(mac_mii_txrst) #1 ;
     mac_mii_txen <= txen;
     mac_mii_txer <= txer;
-    mac_mii_txd <= txen ? txd : '0;
+    mac_mii_txd <= txen ? txd : 0;
     @(posedge mac_mii_txc);
+end
 endtask
 
+integer i;
 
 initial begin
-    int i;
     fork
         begin
             smii_phy_rx(10'b1000101000);

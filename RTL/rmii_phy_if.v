@@ -2,7 +2,7 @@
 //--------------------------------------------------------------------------------------------------------
 // Module  : rmii_phy_if
 // Type    : synthesizable, IP's top
-// Standard: SystemVerilog 2005 (IEEE1800-2005)
+// Standard: Verilog 2001 (IEEE1364-2001)
 // Function: MII (MAC side) to RMII (PHY side) converter, for 10M or 100M ethernet
 //--------------------------------------------------------------------------------------------------------
 
@@ -32,8 +32,8 @@ module rmii_phy_if (
     output reg  [1:0] phy_rmii_txd
 );
 
-initial {mac_mii_crs, mac_mii_rxc, mac_mii_rxdv, mac_mii_rxer, mac_mii_rxd, mac_mii_txc} = '0;
-initial {phy_rmii_txen, phy_rmii_txd} = '0;
+initial {mac_mii_crs, mac_mii_rxc, mac_mii_rxdv, mac_mii_rxer, mac_mii_rxd, mac_mii_txc} = 0;
+initial {phy_rmii_txen, phy_rmii_txd} = 0;
 
 reg       mode_speed_r = 1'b0;
 reg       action = 1'b0;
@@ -60,15 +60,15 @@ reg [3:0] rx_rst_r = 4'hf;
 // ----------------------------------------------------------------------------------------------------------------------
 //  reset sync
 // ----------------------------------------------------------------------------------------------------------------------
-reg       rstn = '0;
-reg [7:0] rstn_shift = '0;
+reg       rstn = 1'b0;
+reg [7:0] rstn_shift = 0;
 always @ (posedge phy_rmii_ref_clk or negedge rstn_async)
     if(~rstn_async) begin
-        {rstn, rstn_shift} <= '0;
+        {rstn, rstn_shift} <= 0;
         mode_speed_r <= 1'b0;
     end else begin
         if(mode_speed_r^mode_speed) begin
-            {rstn, rstn_shift} <= '0;
+            {rstn, rstn_shift} <= 0;
         end else begin
             {rstn, rstn_shift} <= {rstn_shift, 1'b1};
         end
